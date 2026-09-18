@@ -1,0 +1,3 @@
+allowBuilds:
+  '@quenty/loader': true
+  '@quenty/nevermore-test-runner': true

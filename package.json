@@ -1,0 +1,35 @@
+{
+  "name": "@hexium-softworks/log",
+  "version": "1.0.0",
+  "description": "A small, game-agnostic Luau logging package with global loggers, minimum levels, structured context, and sink-based output for Nevermore-style Roblox projects.",
+  "keywords": [
+    "Roblox",
+    "Nevermore",
+    "Luau",
+    "logging",
+    "logger",
+    "log"
+  ],
+  "license": "MIT",
+  "files": [
+    "src",
+    "default.project.json",
+    "README.md"
+  ],
+  "scripts": {
+    "preinstall": "npx only-allow pnpm"
+  },
+  "contributors": [
+    "HexedEthan"
+  ],
+  "dependencies": {
+    "@quenty/loader": "10.11.0"
+  },
+  "devDependencies": {
+    "@quenty/nevermore-test-runner": "1.4.0",
+    "@quentystudios/jest-lua": "3.10.0-quenty.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

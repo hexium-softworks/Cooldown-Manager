@@ -1,0 +1,42 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@quenty/loader':
+        specifier: 10.11.0
+        version: 10.11.0
+    devDependencies:
+      '@quenty/nevermore-test-runner':
+        specifier: 1.4.0
+        version: 1.4.0
+      '@quentystudios/jest-lua':
+        specifier: 3.10.0-quenty.2
+        version: 3.10.0-quenty.2
+
+packages:
+
+  '@quenty/loader@10.11.0':
+    resolution: {integrity: sha512-dijfRLI2bouQjt9OG20aL7waEzJNzzFMXC3+NFm2meCQ7jvCTI5EgmW3eYZHmegFAzmrWtogbQPNR+pIb8T3Zg==}
+
+  '@quenty/nevermore-test-runner@1.4.0':
+    resolution: {integrity: sha512-mlscddpT+16AY3sW8mJoHoD4nDR94viNQ1sWKC0//bZRaTOHColG2YqE+p6uykeOPXMuwG87c4g0BgjSNJybHQ==}
+
+  '@quentystudios/jest-lua@3.10.0-quenty.2':
+    resolution: {integrity: sha512-TE7vhnYjygcBjjqeKLsmbwxhJeiDeekh/E2xcvQ0VZAwHNr+Yn1pk1n/PRJu+KtH2fWYkw20pQO4o/hKPs0lRA==}
+
+snapshots:
+
+  '@quenty/loader@10.11.0': {}
+
+  '@quenty/nevermore-test-runner@1.4.0':
+    dependencies:
+      '@quenty/loader': 10.11.0
+      '@quentystudios/jest-lua': 3.10.0-quenty.2
+
+  '@quentystudios/jest-lua@3.10.0-quenty.2': {}
