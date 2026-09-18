@@ -1,7 +1,7 @@
 {
   "name": "@hexium-softworks/log",
   "version": "1.0.0",
-  "description": "A small, game-agnostic Luau logging package with global loggers, minimum levels, structured context, and sink-based output for Nevermore-style Roblox projects.",
+  "description": "A small, game-agnostic Luau logging package with global loggers, minimum levels, structured context, and sink-based output for NevermoreEngine projects.",
   "keywords": [
     "Roblox",
     "Nevermore",
