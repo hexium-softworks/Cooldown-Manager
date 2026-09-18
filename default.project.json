@@ -1,5 +1,5 @@
 {
-  "name": "log",
+  "name": "inputservice",
   "globIgnorePaths": [
     "**/.package-lock.json",
     "**/.pnpm",

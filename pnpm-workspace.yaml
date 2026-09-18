@@ -1,3 +1,8 @@
 allowBuilds:
+  '@quenty/baseobject': true
   '@quenty/loader': true
+  '@quenty/maid': true
   '@quenty/nevermore-test-runner': true
+  '@quenty/servicebag': true
+  '@quenty/signal': true
+  '@quenty/table': true

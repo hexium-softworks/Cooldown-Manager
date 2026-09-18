@@ -1,0 +1,40 @@
+{
+  "files.exclude": {
+    "*.sublime-workspace": true,
+    "**/node_modules/**": true,
+    "roblox.toml": true
+  },
+  "luau-lsp.sourcemap.rojoProjectFile": "default.project.json",
+  "luau-lsp.ignoreGlobs": ["**/node_modules/**"],
+
+  // This prevents Rojo from memory leaking
+  "luau-lsp.sourcemap.generatorCommand": "npm run build:sourcemap",
+  "luau-lsp.sourcemap.useVSCodeWatcher": true,
+
+  "[lua]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file"
+  },
+  "[luau]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file"
+  },
+
+  // Explorer
+  "explorer.confirmDragAndDrop": false,
+  "explorer.compactFolders": false,
+
+  // Make init files not horrible
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "init.lua": "*.lua",
+    "*": "${basename}.*.${extname}"
+  },
+  "workbench.editor.customLabels.patterns": {
+    "**/init.lua": "${dirname}.lua"
+  },
+
+  "luau-lsp.server.path": "C:/Users/ethan/.rokit/tool-storage/quenty/luau-lsp/1.58.0-quenty.1/luau-lsp.exe"
+}
