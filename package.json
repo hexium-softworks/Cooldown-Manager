@@ -1,12 +1,12 @@
 {
-  "name": "@hexium-softworks/inputservice",
+  "name": "@hexium-softworks/audioservice",
   "version": "1.0.0",
-  "description": "Game-agnostic IAS wrapper",
+  "description": "Game-agnostic Nevermore service for Roblox's modern Audio API, including audio graphs, categories, effects, 3D playback, and voice routes.",
   "keywords": [
     "Roblox",
     "Nevermore",
     "Luau",
-    "Input"
+    "Audio"
   ],
   "license": "MIT",
   "files": [
