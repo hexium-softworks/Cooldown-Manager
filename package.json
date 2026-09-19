@@ -15,7 +15,8 @@
     "README.md"
   ],
   "scripts": {
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "build": "echo \"No build step required; publishing Roblox/Luau source files.\""
   },
   "contributors": [
     "HexedEthan"
