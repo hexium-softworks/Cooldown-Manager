@@ -1,6 +1,6 @@
 {
   "name": "@hexium-softworks/audioservice",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Game-agnostic Nevermore service for Roblox's modern Audio API, including audio graphs, categories, effects, 3D playback, and voice routes.",
   "keywords": [
     "Roblox",
