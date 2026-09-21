@@ -2,6 +2,7 @@ packages:
   - .
 
 allowBuilds:
+  '@hexium-softworks/log': true
   "@quenty/baseobject": true
   "@quenty/loader": true
   "@quenty/maid": true

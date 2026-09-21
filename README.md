@@ -458,5 +458,8 @@ engine remains the source of truth for property support.
   explicit API calls.
 - All generated graph handles implement `Destroy()`, so they fit naturally into
   Nevermore `Maid` cleanup.
+- The services use `@hexium-softworks/log` for structured lifecycle and
+  registration logs; configure Log levels or sinks in your game if you want to
+  surface or suppress them.
 - No remotes are created. Server registration is a registry/default layer;
   clients own local playback graphs and local user settings.

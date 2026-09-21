@@ -12,6 +12,7 @@ local require = require(script.Parent.loader).load(script)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Log = require("Log")
 local Maid = require("Maid")
 local ServiceBag = require("ServiceBag")
 
@@ -27,6 +28,14 @@ type AssetConfig = AudioServiceTypes.AssetConfig
 
 local AudioService = {}
 AudioService.ServiceName = "AudioService"
+
+local LOGGER = Log.new({
+	name = "AudioService",
+	defaultContext = {
+		Service = AudioService.ServiceName,
+		Side = "Server",
+	},
+})
 
 export type AudioService = typeof(setmetatable(
 	{} :: {
@@ -65,6 +74,10 @@ function AudioService.Init(self: AudioService, serviceBag: ServiceBag): ()
 	getOrCreateFolder(self._rootFolder, AudioServiceConstants.CATEGORIES_FOLDER_NAME)
 	getOrCreateFolder(self._rootFolder, AudioServiceConstants.ASSETS_FOLDER_NAME)
 	getOrCreateFolder(self._rootFolder, AudioServiceConstants.EFFECTS_FOLDER_NAME)
+
+	LOGGER.Debug("Initialized audio registry", {
+		RootFolder = self._rootFolder:GetFullName(),
+	})
 end
 
 function AudioService.Start(_self: AudioService): () end
@@ -81,6 +94,10 @@ function AudioService.RegisterCategories(self: AudioService, categories: { Categ
 		local folder = getOrCreateFolder(categoriesFolder, categoryConfig.Name)
 		folder:SetAttribute("Volume", self._categoryRegistry:GetVolume(categoryConfig.Name))
 	end
+
+	LOGGER.Info("Registered audio categories", {
+		Count = #categories,
+	})
 end
 
 function AudioService.RegisterEffects(self: AudioService, effectPresets: { EffectPresetConfig }): ()
@@ -93,6 +110,10 @@ function AudioService.RegisterEffects(self: AudioService, effectPresets: { Effec
 
 		getOrCreateFolder(effectsFolder, presetConfig.Name)
 	end
+
+	LOGGER.Info("Registered audio effect presets", {
+		Count = #effectPresets,
+	})
 end
 
 function AudioService.RegisterAssets(self: AudioService, assets: { AssetConfig }): ()
@@ -107,6 +128,10 @@ function AudioService.RegisterAssets(self: AudioService, assets: { AssetConfig }
 		folder:SetAttribute("Category", assetConfig.Category)
 		folder:SetAttribute("Volume", assetConfig.Volume)
 	end
+
+	LOGGER.Info("Registered audio assets", {
+		Count = #assets,
+	})
 end
 
 function AudioService.GetCategoryVolume(self: AudioService, categoryName: string): number
@@ -119,6 +144,11 @@ function AudioService.SetCategoryVolume(self: AudioService, categoryName: string
 	local categoriesFolder = getOrCreateFolder(self._rootFolder, AudioServiceConstants.CATEGORIES_FOLDER_NAME)
 	local categoryFolder = getOrCreateFolder(categoriesFolder, categoryName)
 	categoryFolder:SetAttribute("Volume", self._categoryRegistry:GetVolume(categoryName))
+
+	LOGGER.Debug("Set category volume", {
+		Category = categoryName,
+		Volume = self._categoryRegistry:GetVolume(categoryName),
+	})
 end
 
 function AudioService.GetCategoryVolumeChangedSignal(self: AudioService, categoryName: string): any
@@ -138,6 +168,7 @@ function AudioService.GetEffectPresetConfig(self: AudioService, presetName: stri
 end
 
 function AudioService.Destroy(self: AudioService): ()
+	LOGGER.Debug("Destroying audio service")
 	self._maid:DoCleaning()
 	table.clear(self._assets)
 	table.clear(self._effectPresets)

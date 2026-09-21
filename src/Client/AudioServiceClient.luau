@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 
+local Log = require("Log")
 local Maid = require("Maid")
 local ServiceBag = require("ServiceBag")
 
@@ -36,6 +37,14 @@ type AudioGraphHandle = AudioServiceTypes.AudioGraphHandle
 
 local AudioServiceClient = {}
 AudioServiceClient.ServiceName = "AudioServiceClient"
+
+local LOGGER = Log.new({
+	name = "AudioServiceClient",
+	defaultContext = {
+		Service = AudioServiceClient.ServiceName,
+		Side = "Client",
+	},
+})
 
 export type AudioServiceClient = typeof(setmetatable(
 	{} :: {
@@ -127,6 +136,10 @@ function AudioServiceClient.Init(self: AudioServiceClient, serviceBag: ServiceBa
 		effectPresets = self._effectPresets,
 		assets = self._assets,
 	})
+
+	LOGGER.Debug("Initialized local audio folders", {
+		RootFolder = self._rootFolder:GetFullName(),
+	})
 end
 
 function AudioServiceClient.Start(_self: AudioServiceClient): () end
@@ -137,6 +150,10 @@ end
 
 function AudioServiceClient.RegisterCategories(self: AudioServiceClient, categories: { CategoryConfig }): ()
 	self._categoryRegistry:RegisterCategories(categories)
+
+	LOGGER.Info("Registered local audio categories", {
+		Count = #categories,
+	})
 end
 
 function AudioServiceClient.RegisterEffects(self: AudioServiceClient, effectPresets: { EffectPresetConfig }): ()
@@ -148,6 +165,10 @@ function AudioServiceClient.RegisterEffects(self: AudioServiceClient, effectPres
 	end
 
 	self._graphBuilder:SetEffectPresets(self._effectPresets)
+
+	LOGGER.Info("Registered local audio effect presets", {
+		Count = #effectPresets,
+	})
 end
 
 function AudioServiceClient.RegisterAssets(self: AudioServiceClient, assets: { AssetConfig }): ()
@@ -159,6 +180,10 @@ function AudioServiceClient.RegisterAssets(self: AudioServiceClient, assets: { A
 	end
 
 	self._graphBuilder:SetAssets(self._assets)
+
+	LOGGER.Info("Registered local audio assets", {
+		Count = #assets,
+	})
 end
 
 function AudioServiceClient.GetCategoryVolume(self: AudioServiceClient, categoryName: string): number
@@ -167,6 +192,11 @@ end
 
 function AudioServiceClient.SetCategoryVolume(self: AudioServiceClient, categoryName: string, volume: number): ()
 	self._categoryRegistry:SetVolume(categoryName, volume)
+
+	LOGGER.Debug("Set local category volume", {
+		Category = categoryName,
+		Volume = self._categoryRegistry:GetVolume(categoryName),
+	})
 end
 
 function AudioServiceClient.GetCategoryVolumeChangedSignal(self: AudioServiceClient, categoryName: string): any
@@ -194,6 +224,8 @@ function AudioServiceClient.EnsureDefaultOutput(self: AudioServiceClient): Audio
 	self._maid._defaultOutput = output
 	self._defaultOutput = output
 
+	LOGGER.Debug("Created default audio output")
+
 	return output
 end
 
@@ -213,6 +245,10 @@ function AudioServiceClient.CreateEmitter(
 	emitter.Parent = parentOrAttachment
 	applyProperties(emitter, emitterConfig.Properties)
 	applyAttenuation(emitter, emitterConfig)
+
+	LOGGER.Debug("Created audio emitter", {
+		Emitter = emitter:GetFullName(),
+	})
 
 	return emitter
 end
@@ -236,6 +272,10 @@ function AudioServiceClient.CreateListener(self: AudioServiceClient, config: Lis
 	self._maid._defaultListenerWire = listenerWire
 	self._defaultListener = listener
 
+	LOGGER.Debug("Created audio listener", {
+		Listener = listener:GetFullName(),
+	})
+
 	return listener
 end
 
@@ -250,6 +290,12 @@ end
 function AudioServiceClient.Play2D(self: AudioServiceClient, config: PlaybackConfig): AudioGraphHandle
 	local output = self:EnsureDefaultOutput()
 	local graphFolder = createGraphFolder(self._playbackFolder, config.Name or config.AssetName or "Playback")
+
+	LOGGER.Debug("Creating 2D playback graph", {
+		Name = config.Name,
+		AssetName = config.AssetName,
+		Category = config.Category,
+	})
 
 	return self._graphBuilder:BuildPlayback2D(config, graphFolder, output)
 end
@@ -267,6 +313,12 @@ function AudioServiceClient.Play3D(self: AudioServiceClient, config: PlaybackCon
 		})
 		ownedEmitter = emitter
 	end
+
+	LOGGER.Debug("Creating 3D playback graph", {
+		Name = config.Name,
+		AssetName = config.AssetName,
+		Category = config.Category,
+	})
 
 	return self._graphBuilder:BuildPlayback3D(config, graphFolder, emitter :: AudioEmitter, ownedEmitter)
 end
@@ -294,6 +346,11 @@ function AudioServiceClient.CreateVoiceInput(self: AudioServiceClient, config: V
 	end
 
 	input.Parent = self._voiceFolder
+
+	LOGGER.Debug("Created voice input", {
+		Player = input.Player and input.Player.Name or nil,
+	})
+
 	return input
 end
 
@@ -313,10 +370,17 @@ function AudioServiceClient.CreateVoiceRoute(self: AudioServiceClient, config: V
 	local target = config.Target or config.Output or self:EnsureDefaultOutput()
 	local graphFolder = createGraphFolder(self._voiceFolder, config.Name or "VoiceRoute")
 
+	LOGGER.Debug("Creating voice route", {
+		Name = config.Name,
+		Category = config.Category,
+		Target = target:GetFullName(),
+	})
+
 	return self._graphBuilder:BuildVoiceRoute(config, graphFolder, input :: AudioDeviceInput, target, ownedInput)
 end
 
 function AudioServiceClient.Destroy(self: AudioServiceClient): ()
+	LOGGER.Debug("Destroying audio service client")
 	self._maid:DoCleaning()
 	table.clear(self._effectPresets)
 	table.clear(self._assets)
