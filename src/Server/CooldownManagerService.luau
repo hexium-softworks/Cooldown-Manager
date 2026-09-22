@@ -13,12 +13,26 @@ local ClockUtils = require("CooldownManagerClock")
 local CooldownTracker = require("CooldownTracker")
 local Log = require("Log")
 local Maid = require("Maid")
+local ReplicationService = require("ReplicationService")
+local ReplicationUtils = require("CooldownManagerReplicationUtils")
 
 local CooldownManagerService = {}
 CooldownManagerService.ServiceName = "CooldownManagerService"
 
+local ServiceLog = Log.new({
+	name = "CooldownManagerService",
+	defaultContext = {
+		Package = "CooldownManager",
+		Service = "CooldownManagerService",
+	},
+})
+
 local function isInstance(value: any): boolean
 	return typeof(value) == "Instance"
+end
+
+local function isPlayer(value: any): boolean
+	return isInstance(value) and value:IsA("Player")
 end
 
 function CooldownManagerService:Init(serviceBag)
@@ -26,11 +40,12 @@ function CooldownManagerService:Init(serviceBag)
 	self._serviceBag = assert(serviceBag, "No serviceBag")
 	self._maid = Maid.new()
 	self._clock = ClockUtils.newDefaultClock()
+	self._replicationService = self._serviceBag:GetService(ReplicationService)
 	self._weakTrackers = setmetatable({}, { __mode = "k" })
 	self._stringTrackers = {}
 	self._trackerMaids = setmetatable({}, { __mode = "k" })
-	self._replicationAdapter = nil
-	self._warnedMissingReplicationAdapter = false
+	self._replicatedStates = setmetatable({}, { __mode = "k" })
+	self._warnedUnsupportedReplicationOwners = setmetatable({}, { __mode = "k" })
 
 	self._maid:GiveTask(Players.PlayerRemoving:Connect(function(player)
 		self:DestroyTracker(player)
@@ -42,11 +57,6 @@ function CooldownManagerService:Start() end
 function CooldownManagerService:SetClock(clock)
 	assert(type(clock) == "table" and type(clock.Now) == "function", "Clock must expose Now(self)")
 	self._clock = clock
-end
-
-function CooldownManagerService:SetReplicationAdapter(adapter)
-	self._replicationAdapter = adapter
-	self._warnedMissingReplicationAdapter = false
 end
 
 function CooldownManagerService:_getTrackerMap(owner: any)
@@ -112,6 +122,16 @@ function CooldownManagerService:FindTracker(owner: any)
 	return nil
 end
 
+function CooldownManagerService:_destroyReplicatedState(owner: any)
+	local state = self._replicatedStates[owner]
+	if not state then
+		return
+	end
+
+	self._replicatedStates[owner] = nil
+	state:Destroy()
+end
+
 function CooldownManagerService:DestroyTracker(owner: any): boolean
 	local tracker = self:FindTracker(owner)
 	if not tracker then
@@ -128,6 +148,7 @@ function CooldownManagerService:DestroyTracker(owner: any): boolean
 	end
 
 	tracker:Destroy()
+	self:_destroyReplicatedState(owner)
 	return true
 end
 
@@ -194,52 +215,85 @@ function CooldownManagerService:TryAcquire(owner: any, request: any)
 	return self:GetTracker(owner):TryAcquire(request)
 end
 
-function CooldownManagerService:_withReplicationAdapter(callbackName: string, callback: (adapter: any) -> ())
-	local adapter = self._replicationAdapter
-	if not adapter then
-		if not self._warnedMissingReplicationAdapter then
-			self._warnedMissingReplicationAdapter = true
-			Log.Warn("Replicated cooldown requested without a replication adapter", {
-				Service = "CooldownManagerService",
+function CooldownManagerService:_getReplicatedState(owner: any)
+	if not isPlayer(owner) then
+		if not self._warnedUnsupportedReplicationOwners[owner] then
+			self._warnedUnsupportedReplicationOwners[owner] = true
+			ServiceLog.Warn("Cooldown replication is only supported for Player owners", {
+				OwnerType = typeof(owner),
 			})
 		end
+		return nil
+	end
+
+	local state = self._replicatedStates[owner]
+	if state and not state:IsDestroyed() then
+		return state
+	end
+
+	state = self._replicationService:CreateState({
+		Id = ReplicationUtils.getPlayerStateId(owner.UserId),
+		InitialState = {
+			Cooldowns = {},
+		},
+		Audience = owner,
+	})
+
+	self._replicatedStates[owner] = state
+	return state
+end
+
+function CooldownManagerService:_replicateCooldown(owner: any, key: string, cooldown, _isUpdate: boolean)
+	local state = self:_getReplicatedState(owner)
+	if not state then
 		return
 	end
 
-	local success, err = pcall(callback, adapter)
+	local success, err = pcall(function()
+		state:Set({ "Cooldowns", ReplicationUtils.encodeKey(key) }, cooldown:ToSnapshot())
+	end)
+
 	if not success then
-		Log.Warn("Cooldown replication adapter failed", {
-			Service = "CooldownManagerService",
-			Method = callbackName,
+		ServiceLog.Warn("Failed to replicate cooldown", {
+			Key = key,
 			Error = tostring(err),
 		})
 	end
 end
 
-function CooldownManagerService:_replicateCooldown(owner: any, key: string, cooldown, isUpdate: boolean)
-	local methodName = if isUpdate then "CooldownUpdated" else "CooldownStarted"
-	self:_withReplicationAdapter(methodName, function(adapter)
-		local method = adapter[methodName]
-		if type(method) == "function" then
-			method(adapter, owner, key, cooldown:ToSnapshot())
-		end
-	end)
-end
-
 function CooldownManagerService:_removeReplicatedCooldown(owner: any, key: string)
-	self:_withReplicationAdapter("CooldownRemoved", function(adapter)
-		if type(adapter.CooldownRemoved) == "function" then
-			adapter:CooldownRemoved(owner, key)
-		end
+	local state = self._replicatedStates[owner]
+	if not state or state:IsDestroyed() then
+		return
+	end
+
+	local success, err = pcall(function()
+		state:Delete({ "Cooldowns", ReplicationUtils.encodeKey(key) })
 	end)
+
+	if not success then
+		ServiceLog.Warn("Failed to remove replicated cooldown", {
+			Key = key,
+			Error = tostring(err),
+		})
+	end
 end
 
 function CooldownManagerService:_trackerCleared(owner: any)
-	self:_withReplicationAdapter("TrackerCleared", function(adapter)
-		if type(adapter.TrackerCleared) == "function" then
-			adapter:TrackerCleared(owner)
-		end
+	local state = self._replicatedStates[owner]
+	if not state or state:IsDestroyed() then
+		return
+	end
+
+	local success, err = pcall(function()
+		state:Set("Cooldowns", {})
 	end)
+
+	if not success then
+		ServiceLog.Warn("Failed to clear replicated cooldowns", {
+			Error = tostring(err),
+		})
+	end
 end
 
 function CooldownManagerService:Destroy()

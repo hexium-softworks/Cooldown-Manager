@@ -2,10 +2,41 @@ return function()
 	local require = require(script.Parent.loader).load(script)
 
 	local CooldownManagerServiceClient = require("CooldownManagerServiceClient")
+	local ReplicationUtils = require("CooldownManagerReplicationUtils")
+
+	local function makeReplicationClient()
+		local replicationClient = {
+			Observers = {},
+		}
+
+		function replicationClient:ObserveState(stateId)
+			return {
+				Subscribe = function(_, callback)
+					table.insert(self.Observers, {
+						StateId = stateId,
+						Callback = callback,
+					})
+					callback(nil)
+
+					return {
+						Disconnect = function() end,
+						Destroy = function() end,
+					}
+				end,
+			}
+		end
+
+		return replicationClient
+	end
 
 	local function makeClient(now)
+		local replicationClient = makeReplicationClient()
 		local client = table.clone(CooldownManagerServiceClient)
-		client:Init({})
+		client:Init({
+			GetService = function()
+				return replicationClient
+			end,
+		})
 		local clock = {
 			Value = now or 100,
 		}
@@ -15,7 +46,7 @@ return function()
 		end
 
 		client:SetClock(clock)
-		return client, clock
+		return client, clock, replicationClient
 	end
 
 	describe("CooldownManagerServiceClient", function()
@@ -40,6 +71,27 @@ return function()
 
 			clock.Value = 105
 			expect(client:GetCooldown("Abilities.Dash")).to.equal(nil)
+			expect(client:IsReady("Abilities.Dash")).to.equal(true)
+
+			client:Destroy()
+		end)
+
+		it("applies ReplicationService cooldown maps with encoded keys", function()
+			local client = makeClient()
+			local encodedKey = ReplicationUtils.encodeKey("Abilities.Dash")
+
+			client:_ApplyCooldownMap({
+				[encodedKey] = {
+					Key = "Abilities.Dash",
+					StartTime = 100,
+					EndTime = 103,
+					Duration = 3,
+				},
+			})
+
+			expect(client:IsReady("Abilities.Dash")).to.equal(false)
+
+			client:_ApplyCooldownMap({})
 			expect(client:IsReady("Abilities.Dash")).to.equal(true)
 
 			client:Destroy()

@@ -4,7 +4,7 @@ A game-agnostic Nevermore package for server-authoritative runtime cooldowns.
 
 Cooldown Manager tracks cooldowns by owner and string key, supports atomic
 check-and-start operations, shared cooldown groups, cancellation and adjustment,
-and read-only client timing snapshots for UI.
+and ReplicationService-backed read-only client timing data for UI.
 
 It does not execute abilities, process inputs, prevent network abuse, persist
 daily rewards, or decide game-specific cooldown definitions.
@@ -12,7 +12,7 @@ daily rewards, or decide game-specific cooldown definitions.
 ## Installation
 
 ```sh
-pnpm add @hexium-softworks/cooldown-manager
+pnpm add @hexium-softworks/cooldown-manager @hexium-softworks/replicationservice
 ```
 
 ## Nevermore Usage
@@ -25,8 +25,10 @@ Server:
 local require = require(script.Parent.loader).load(script)
 
 local CooldownManagerService = require("CooldownManagerService")
+local ReplicationService = require("ReplicationService")
 
 function AbilityService:Init(serviceBag)
+	serviceBag:GetService(ReplicationService)
 	self._cooldowns = serviceBag:GetService(CooldownManagerService)
 end
 
@@ -49,8 +51,10 @@ Client:
 local require = require(script.Parent.loader).load(script)
 
 local CooldownManagerServiceClient = require("CooldownManagerServiceClient")
+local ReplicationServiceClient = require("ReplicationServiceClient")
 
 function AbilityHud:Init(serviceBag)
+	serviceBag:GetService(ReplicationServiceClient)
 	self._cooldowns = serviceBag:GetService(CooldownManagerServiceClient)
 end
 
@@ -80,7 +84,6 @@ end
 | `Extend(owner, key, duration)` | Adds time to an active cooldown. |
 | `Reduce(owner, key, duration)` | Removes time from an active cooldown. |
 | `TryAcquire(owner, request)` | Atomically checks and starts multiple keys. |
-| `SetReplicationAdapter(adapter?)` | Installs the optional replication adapter. |
 
 Tracker objects mirror these methods without the `owner` argument.
 
@@ -92,6 +95,7 @@ local CooldownPolicy = Constants.CooldownPolicy
 
 cooldowns:Start(player, "Abilities.Fireball", 8, {
 	Policy = CooldownPolicy.Restart,
+	Replicate = true,
 })
 ```
 
@@ -102,6 +106,43 @@ Policies:
 - `KeepLonger`: keep an active cooldown when it already has at least as much
   remaining time.
 - `Extend`: add the supplied duration to an active cooldown.
+
+## Replication
+
+Cooldown Manager depends on `@hexium-softworks/replicationservice`.
+
+When a player-owned cooldown starts with `{ Replicate = true }`, the server
+creates or reuses a private state:
+
+```lua
+{
+	Id = `Cooldowns:{player.UserId}`,
+	InitialState = {
+		Cooldowns = {},
+	},
+	Audience = player,
+}
+```
+
+Each active cooldown is stored under `Cooldowns` using an encoded key segment, so
+namespaced keys such as `Abilities.Dash` are safe with ReplicationService path
+validation. The replicated value includes:
+
+```lua
+{
+	Key = "Abilities.Dash",
+	StartTime = 1000,
+	EndTime = 1003,
+	Duration = 3,
+	Revision = 1,
+	Metadata = nil,
+}
+```
+
+When a cooldown completes or is cancelled, the server deletes that entry. When a
+tracker is destroyed, its replicated state is destroyed too. Replication is
+currently owner-only for `Player` owners; non-player owners can still use
+server-only cooldowns.
 
 ## Shared Cooldowns
 
@@ -127,8 +168,8 @@ end
 
 ## Client API
 
-`CooldownManagerServiceClient` is read-only. It exposes local timing helpers over
-snapshots applied by a future replication adapter.
+`CooldownManagerServiceClient` subscribes to `Cooldowns:{LocalPlayer.UserId}` via
+`ReplicationServiceClient` and exposes read-only timing helpers.
 
 | Method | Description |
 | --- | --- |
@@ -139,28 +180,11 @@ snapshots applied by a future replication adapter.
 | `ObserveCooldown(key, callback)` | Fires immediately and when the snapshot changes. |
 | `ObserveRemaining(key, options?, callback)` | Samples remaining time while active. |
 | `ObserveProgress(key, options?, callback)` | Samples progress while active. |
-| `ObserveReady(key, callback)` | Fires ready state changes. |
+| `ObserveReady(key, callback)` | Fires ready state changes, including local expiry. |
 | `ObserveAll(callback)` | Observes all snapshot changes. |
 
 The client intentionally has no `Start`, `Cancel`, `Extend`, `Reduce`, or
 `Clear` methods.
-
-## Replication Adapter
-
-Runtime cooldowns work without a replication adapter. When a cooldown is started
-with `{ Replicate = true }`, the server calls the configured adapter:
-
-```lua
-cooldowns:SetReplicationAdapter({
-	CooldownStarted = function(self, owner, key, snapshot) end,
-	CooldownUpdated = function(self, owner, key, snapshot) end,
-	CooldownRemoved = function(self, owner, key) end,
-	TrackerCleared = function(self, owner) end,
-})
-```
-
-This keeps v1 independent of any specific `ReplicationService` package while
-leaving a small integration point for owner-visible replicated states later.
 
 ## Key Rules
 

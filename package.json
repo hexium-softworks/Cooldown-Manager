@@ -1,7 +1,7 @@
 {
   "name": "@hexium-softworks/cooldown-manager",
-  "version": "0.1.0",
-  "description": "Game-agnostic Nevermore cooldown manager with server-authoritative trackers and read-only client timing data.",
+  "version": "0.2.0",
+  "description": "Game-agnostic Nevermore cooldown manager with server-authoritative trackers and ReplicationService-backed client timing data.",
   "keywords": [
     "Roblox",
     "Nevermore",
@@ -24,6 +24,7 @@
   ],
   "dependencies": {
     "@hexium-softworks/log": "^1.0.1",
+    "@hexium-softworks/replicationservice": "workspace:^0.1.0",
     "@quenty/loader": "10.11.0",
     "@quenty/maid": "^3.12.0",
     "@quenty/servicebag": "^11.21.0",

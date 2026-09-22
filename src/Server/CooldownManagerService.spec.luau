@@ -1,18 +1,61 @@
 return function()
 	local require = require(script.Parent.loader).load(script)
 
-	local Constants = require("CooldownManagerConstants")
 	local CooldownManagerService = require("CooldownManagerService")
 
+	local function makeReplicationService()
+		local replicationService = {
+			States = {},
+		}
+
+		function replicationService:CreateState(config)
+			local state = {
+				Config = config,
+				Sets = {},
+				Deletes = {},
+				Destroyed = false,
+			}
+
+			function state:IsDestroyed()
+				return self.Destroyed
+			end
+
+			function state:Set(path, value)
+				table.insert(self.Sets, {
+					Path = path,
+					Value = value,
+				})
+			end
+
+			function state:Delete(path)
+				table.insert(self.Deletes, path)
+			end
+
+			function state:Destroy()
+				self.Destroyed = true
+			end
+
+			table.insert(self.States, state)
+			return state
+		end
+
+		return replicationService
+	end
+
 	local function makeService()
+		local replicationService = makeReplicationService()
 		local service = table.clone(CooldownManagerService)
-		service:Init({})
+		service:Init({
+			GetService = function()
+				return replicationService
+			end,
+		})
 		service:SetClock({
 			Now = function()
 				return 100
 			end,
 		})
-		return service
+		return service, replicationService
 	end
 
 	describe("CooldownManagerService", function()
@@ -36,70 +79,16 @@ return function()
 			service:Destroy()
 		end)
 
-		it("calls the replication adapter only for replicated cooldowns", function()
-			local service = makeService()
-			local owner = "Global"
-			local calls = {}
-
-			service:SetReplicationAdapter({
-				CooldownStarted = function(_, callOwner, key, snapshot)
-					table.insert(calls, {
-						Method = "Started",
-						Owner = callOwner,
-						Key = key,
-						EndTime = snapshot.EndTime,
-					})
-				end,
-
-				CooldownUpdated = function(_, callOwner, key, snapshot)
-					table.insert(calls, {
-						Method = "Updated",
-						Owner = callOwner,
-						Key = key,
-						EndTime = snapshot.EndTime,
-					})
-				end,
-
-				CooldownRemoved = function(_, callOwner, key)
-					table.insert(calls, {
-						Method = "Removed",
-						Owner = callOwner,
-						Key = key,
-					})
-				end,
-			})
-
-			service:TryStart(owner, "Server.Only", 1)
-			expect(#calls).to.equal(0)
-
-			service:TryStart(owner, "Abilities.Dash", 3, {
-				Replicate = true,
-			})
-			expect(#calls).to.equal(1)
-			expect(calls[1].Method).to.equal("Started")
-			expect(calls[1].Key).to.equal("Abilities.Dash")
-
-			service:TryStart(owner, "Abilities.Dash", 4, {
-				Policy = Constants.CooldownPolicy.Restart,
-			})
-			expect(#calls).to.equal(2)
-			expect(calls[2].Method).to.equal("Updated")
-
-			service:Cancel(owner, "Abilities.Dash")
-			expect(#calls).to.equal(3)
-			expect(calls[3].Method).to.equal("Removed")
-
-			service:Destroy()
-		end)
-
-		it("allows replicated cooldowns without an adapter", function()
-			local service = makeService()
+		it("does not create replicated states for non-player owners", function()
+			local service, replicationService = makeService()
 
 			local success = service:TryStart("Global", "Abilities.Dash", 1, {
 				Replicate = true,
 			})
 
 			expect(success).to.equal(true)
+			expect(#replicationService.States).to.equal(0)
+
 			service:Destroy()
 		end)
 	end)

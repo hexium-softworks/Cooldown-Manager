@@ -37,13 +37,6 @@ export type TryAcquireResult = {
 	Started: { [string]: any }?,
 }
 
-export type ReplicationAdapter = {
-	CooldownStarted: ((self: ReplicationAdapter, owner: any, key: string, snapshot: CooldownSnapshot) -> ())?,
-	CooldownUpdated: ((self: ReplicationAdapter, owner: any, key: string, snapshot: CooldownSnapshot) -> ())?,
-	CooldownRemoved: ((self: ReplicationAdapter, owner: any, key: string) -> ())?,
-	TrackerCleared: ((self: ReplicationAdapter, owner: any) -> ())?,
-}
-
 export type Clock = {
 	Now: (self: Clock) -> number,
 }

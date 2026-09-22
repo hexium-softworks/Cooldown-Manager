@@ -5,12 +5,16 @@
 	@class CooldownManagerServiceClient
 ]=]
 
+local Players = game:GetService("Players")
+
 local require = require(script.Parent.loader).load(script)
 
 local ClockUtils = require("CooldownManagerClock")
 local Constants = require("CooldownManagerConstants")
 local KeyUtils = require("CooldownManagerKeyUtils")
 local Maid = require("Maid")
+local ReplicationServiceClient = require("ReplicationServiceClient")
+local ReplicationUtils = require("CooldownManagerReplicationUtils")
 local Signal = require("Signal")
 
 local CooldownManagerServiceClient = {}
@@ -52,10 +56,20 @@ function CooldownManagerServiceClient:Init(serviceBag)
 	assert(not self._serviceBag, "Already initialized")
 	self._serviceBag = assert(serviceBag, "No serviceBag")
 	self._maid = Maid.new()
+	self._replicatedStateMaid = self._maid:Add(Maid.new())
 	self._clock = ClockUtils.newDefaultClock()
 	self._cooldowns = {}
 	self._signalsByKey = {}
 	self._allChanged = Signal.new()
+	self._replicationServiceClient = self._serviceBag:GetService(ReplicationServiceClient)
+
+	local localPlayer = Players.LocalPlayer
+	if localPlayer then
+		local stateId = ReplicationUtils.getPlayerStateId(localPlayer.UserId)
+		self._maid:GiveTask(self._replicationServiceClient:ObserveState(stateId):Subscribe(function(state)
+			self:_BindReplicatedState(state)
+		end))
+	end
 end
 
 function CooldownManagerServiceClient:Start() end
@@ -63,6 +77,19 @@ function CooldownManagerServiceClient:Start() end
 function CooldownManagerServiceClient:SetClock(clock)
 	assert(type(clock) == "table" and type(clock.Now) == "function", "Clock must expose Now(self)")
 	self._clock = clock
+end
+
+function CooldownManagerServiceClient:_BindReplicatedState(state)
+	self._replicatedStateMaid:DoCleaning()
+
+	if not state then
+		self:_ClearCooldowns()
+		return
+	end
+
+	self._replicatedStateMaid:GiveTask(state:Observe("Cooldowns"):Subscribe(function(cooldowns)
+		self:_ApplyCooldownMap(cooldowns or {})
+	end))
 end
 
 function CooldownManagerServiceClient:_getSignal(key: string)
@@ -88,6 +115,39 @@ function CooldownManagerServiceClient:_ApplyCooldown(snapshot)
 
 	self._cooldowns[snapshot.Key] = copySnapshot(snapshot)
 	self:_emit(snapshot.Key)
+end
+
+function CooldownManagerServiceClient:_ApplyCooldownMap(cooldowns)
+	local nextCooldowns = {}
+
+	if type(cooldowns) == "table" then
+		for encodedKey, snapshot in cooldowns do
+			if type(encodedKey) == "string" and type(snapshot) == "table" then
+				local key = snapshot.Key
+				if type(key) ~= "string" then
+					key = ReplicationUtils.decodeKey(encodedKey)
+				end
+
+				if KeyUtils.isValidKey(key) then
+					local copied = copySnapshot(snapshot)
+					copied.Key = key
+					nextCooldowns[key] = copied
+				end
+			end
+		end
+	end
+
+	for key in self._cooldowns do
+		if nextCooldowns[key] == nil then
+			self._cooldowns[key] = nil
+			self:_emit(key)
+		end
+	end
+
+	for key, snapshot in nextCooldowns do
+		self._cooldowns[key] = snapshot
+		self:_emit(key)
+	end
 end
 
 function CooldownManagerServiceClient:_RemoveCooldown(key: string)
